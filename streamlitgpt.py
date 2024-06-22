@@ -4,26 +4,26 @@ import matplotlib.pyplot as plt
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-import openai
 from skllm.config import SKLLMConfig
 from skllm.models.gpt.text2text.summarization import GPTSummarizer
 from skllm.models.gpt.classification.zero_shot import ZeroShotGPTClassifier
 import openai
 from openai import OpenAI
 
-api_key = open('openaiapikey.txt').read()
+nltk.download('punkt')
+nltk.download('stopwords')
+
+###
+
+st.set_page_config(layout='wide')
+
+###
+
+api_key = st.secrets["api_key"]
+SKLLMConfig.set_openai_key(api_key)
 client = OpenAI(api_key=api_key)
 
-api_key = open('openaiapikey.txt').read()
-SKLLMConfig.set_openai_key(api_key)
-
-
-my_page = st.sidebar.radio('Page Navigation',
-                           ['About the data', 'Interactive highlights', 
-                            'News summarization', 
-                            'Sentiment-based recommendations',
-                            'Keyword extraction'])
-
+###
 
 def extract_keywords(text):
     system_prompt = 'You are a news analyst assistant tasked to extract keywords from news articles.'
@@ -51,6 +51,14 @@ def extract_keywords(text):
     except:
         return []
 
+
+###
+my_page = st.sidebar.radio('Page Navigation',
+                           ['About the data', 'Interactive highlights', 
+                            'News summarization', 
+                            'Sentiment-based recommendations',
+                            'Keyword extraction'])
+
 if my_page == 'About the data':
     st.title("Insight Out: A Rappler News Exploration App")
     st.markdown("This Streamlit app provides comprehensive analysis and exploration of the latest Rappler news data. Designed for **Eskwelabs Data Science Fellowship Cohort 13.**")
@@ -75,7 +83,7 @@ if my_page == 'About the data':
     plt.title('Daily Volume of Rappler Articles, 2024Q1', fontsize=16)
 
     st.pyplot(fig)
-
+    
 elif my_page == 'Interactive highlights':
     st.title('Interacting with the Rappler dataset')
     df = pd.read_csv("rappler-2024-cleaned-st.csv")
@@ -84,19 +92,19 @@ elif my_page == 'Interactive highlights':
         label='Keywords for filtering the data. If multiple keywords, make a comma-separated list',
         value=''
     )
-
+    
     keywords = [kw.strip() for kw in keywords.split(',')]
-
+    
     st.write(keywords)
-
+    
     search_cols = st.multiselect(
         'Select columns where keywords will be searched',
         df.columns)
-
+    
     if search_cols:
         marker_cols = list()
         for col in search_cols:
-            df[col+'_marker'] = df[col].str.contains('|'.join(keywords), case=False)
+            df[col+'_marker'] = df[col].str.contains('|'.join(keywords), case=False)               
             marker_cols.append(col+'_marker')
 
         search_markers = [x + '_marker' for x in search_cols]
@@ -104,14 +112,14 @@ elif my_page == 'Interactive highlights':
         df['marker'] = df['marker'] > 0
 
         df = df[df['marker']]
-
+    
         if st.toggle('Show preview of data', value=True):
             st.header("Preview of the dataset")
             st.write(df.head())
-
-        # Add bar plot for top bigrams from filtered data
+    
+        # Add bigram plot for filtered data
         st.header('Top bigrams from the filtered dataset')
-
+        
         content = df['content.cleaned'].str.cat(sep=' ')
         tokens = word_tokenize(content)
         tokens = [word.lower() for word in tokens
@@ -124,19 +132,19 @@ elif my_page == 'Interactive highlights':
 
         bigram_words = [f"{word1} {word2}" for (word1, word2), freq in top_10_bigrams]
         bigram_frequencies = [freq for (word1, word2), freq in top_10_bigrams]
-
+        
         fig, ax = plt.subplots(figsize=(10, 6))
-
+        
         plt.barh(bigram_words, bigram_frequencies)
-
+        
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-
+        
         plt.xlabel('frequency')
         plt.ylabel('bigrams')
         plt.title('Top 10 bigrams by frequency', fontsize=16)
-        plt.gca().invert_yaxis()
-
+        plt.gca().invert_yaxis() 
+        
         st.pyplot(fig)
         
 elif my_page == 'News summarization':
@@ -144,32 +152,32 @@ elif my_page == 'News summarization':
     df = pd.read_csv("rappler-2024-cleaned-st.csv").sort_values(
         'date', ascending=False
     )
-
+    
     title = st.selectbox(
         'Select article title', df['title.cleaned'], index=None
     )
-
+    
     if title:
         article = df[df['title.cleaned']==title].iloc[0]
-
+           
         st.header(f"[{article['title.cleaned']}]({article['link']})")
         st.caption(f"__Published date:__ {article['date']}")
-
+                
         col1, col2 = st.columns([3,1])
 
         focused_summary_toggle = col1.toggle(
             'Make focused summary', value=False
         )
-
+        
         summary_button = col2.button('Summarize article')
-
+        
         focus = None
         if focused_summary_toggle:
             focus = st.text_input('Input summary focus', value='')
-
+            
             if focus == '':
                 focus = None
-
+        
         s = GPTSummarizer(
             model='gpt-3.5-turbo', max_words=50, focus=focus
         )
@@ -178,44 +186,45 @@ elif my_page == 'News summarization':
             st.subheader('Summary')
             article_summary = s.fit_transform([article['content.cleaned']])[0]
             st.write(article_summary)
-
+        
         st.subheader('Article content')
         st.write(article['content.cleaned'])
-
+        
+        
 elif my_page == 'Sentiment-based recommendations':
     st.title('Recommending articles based on predicted sentiments')
     df = pd.read_csv("schools-sentiment-labeled.csv").sort_values(
         'date', ascending=False
     )
-
+    
     title = st.selectbox(
         'Select article title', df['title.cleaned'], index=None
     )
-
+    
     if title:
         article = df[df['title.cleaned']==title].iloc[0]
-
+                           
         col1, col2 = st.columns([3,1])
         col1.header(f"[{article['title.cleaned']}]({article['link']})")
         col1.caption(f"__Published date:__ {article['date']}")
-
+        
         clf = ZeroShotGPTClassifier(model="gpt-3.5-turbo")
         clf.fit(None, ["Positive", "Negative", "Neutral"])
         article_sentiment = clf.predict([article['content.cleaned']])[0]
-
+        
         col1.info(f'This article is **{article_sentiment.upper()}** based on the article content.')
-
+        
         col1.subheader('Full article content')
         col1.write(article['content.cleaned'])
-
+              
         col2.caption('**SUGGESTED STORIES**')
         suggestions = df[df['gpt_sentiment']==article_sentiment].sample(3)
-
+        
         for i, suggestion in suggestions.iterrows():
             col2.subheader(f"{suggestion['title.cleaned']}")
             col2.write(f"[Link to the article]({suggestion['link']})")
-
-
+            
+        
 elif my_page == 'Keyword extraction':
     st.title('Tagging articles with their most relevant keywords')
     df = pd.read_csv("rappler-2024-cleaned-st.csv").sort_values(
