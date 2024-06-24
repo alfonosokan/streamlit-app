@@ -12,6 +12,7 @@ import openai
 from openai import OpenAI
 
 nltk.download('punkt')
+nltk.download('stopwords')
 
 api_key = st.secrets['api_key']
 SKLLMConfig.set_openai_key(api_key)
